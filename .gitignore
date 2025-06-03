@@ -1,1 +1,91 @@
+# Compiled executables and object files
+*.o
+*.obj
+*.exe
+*.out
+*.app
+cpu_demo
+cpu_demo_integrated
 
+# Build directories
+build/
+bin/
+obj/
+
+# Output and generated files
+output/
+*.ppm
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+
+# Configuration files that might contain sensitive data or be environment-specific
+# (Keep example configs but ignore runtime configs)
+*_demo_config.conf
+rd_demo_config.conf
+integrated_demo_config.conf
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# IDE and editor files
+.vscode/
+.idea/
+*.suo
+*.user
+*.vcxproj.user
+*.vcproj.user
+
+# macOS specific files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Linux specific files
+*~
+.nfs*
+
+# Windows specific files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs and debug files
+*.log
+*.out
+core
+debug/
+
+# Dependency directories (if using package managers)
+node_modules/
+.npm/
+
+# Backup files
+*.backup
+*.bak
+
+# Performance profiling output
+*.prof
+gmon.out
+
+# Memory debugging output
+*.valgrind
+*.memcheck
+
+# Documentation build output
+docs/_build/
+*.pdf
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z
