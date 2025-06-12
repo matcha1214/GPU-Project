@@ -2,7 +2,7 @@
 #define BIOME_CLASSIFIER_CPU_H
 
 #include "reaction_diffusion_cpu.h"
-#include "../common/types.h"
+#include "../utils/types.h"
 #include <vector>
 #include <string>
 

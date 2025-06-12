@@ -1,7 +1,7 @@
 #ifndef REACTION_DIFFUSION_CPU_H
 #define REACTION_DIFFUSION_CPU_H
 
-#include "../common/types.h"
+#include "../utils/types.h"
 #include <vector>
 #include <string>
 

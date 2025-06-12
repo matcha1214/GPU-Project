@@ -1,6 +1,6 @@
 #include "reaction_diffusion_cpu.h"
-#include "../common/ppm_writer.h"
-#include "../common/utils.h"
+#include "../utils/ppm_writer.h"
+#include "../utils/utils.h"
 #include <fstream>
 #include <algorithm>
 #include <iostream>

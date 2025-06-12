@@ -1,6 +1,6 @@
 #include "agent_model_cpu.h"
-#include "../common/utils.h"
-#include "../common/ppm_writer.h"
+#include "../utils/utils.h"
+#include "../utils/ppm_writer.h"
 #include "biome_classifier_cpu.h"
 #include <iostream>
 #include <algorithm>

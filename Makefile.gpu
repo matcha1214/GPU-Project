@@ -1,0 +1,237 @@
+# GPU-Enhanced Makefile for Biome-Agent Simulation
+# Extends the original CPU implementation with CUDA GPU acceleration
+
+# Compiler and flags
+CXX = g++
+NVCC = nvcc
+CXXFLAGS = -std=c++17 -Wall -Wextra -O2
+NVCCFLAGS = -std=c++17 -O2 -arch=sm_60 --compiler-options -fPIC
+
+# Check if CUDA is available
+CUDA_AVAILABLE := $(shell which nvcc >/dev/null 2>&1 && echo true || echo false)
+
+# Directories
+SRC_DIR = src
+CPU_DIR = $(SRC_DIR)/cpu_simulation_logic
+GPU_DIR = $(SRC_DIR)/gpu_core
+UTILS_DIR = $(SRC_DIR)/utils
+OUTPUT_DIR = output
+
+# Source files
+CPU_CORE_SOURCES = $(CPU_DIR)/reaction_diffusion_cpu.cpp $(CPU_DIR)/agent_model_cpu.cpp $(CPU_DIR)/biome_classifier_cpu.cpp
+UTILS_SOURCES = $(UTILS_DIR)/ppm_writer.cpp $(UTILS_DIR)/utils.cpp $(UTILS_DIR)/config.cpp $(UTILS_DIR)/timer.cpp
+
+# GPU source files (only if CUDA is available)
+ifeq ($(CUDA_AVAILABLE),true)
+GPU_SOURCES = $(GPU_DIR)/cuda_utils.cu $(GPU_DIR)/rd_kernels.cu $(GPU_DIR)/biome_kernels.cu $(GPU_DIR)/abm_kernels.cu $(GPU_DIR)/gpu_simulation_manager.cu
+GPU_OBJECTS = $(GPU_SOURCES:.cu=.o)
+endif
+
+# Header files
+CPU_HEADERS = $(CPU_DIR)/reaction_diffusion_cpu.h $(CPU_DIR)/agent_model_cpu.h $(CPU_DIR)/biome_classifier_cpu.h
+UTILS_HEADERS = $(UTILS_DIR)/types.h $(UTILS_DIR)/ppm_writer.h $(UTILS_DIR)/utils.h $(UTILS_DIR)/config.h $(UTILS_DIR)/timer.h
+GPU_HEADERS = $(GPU_DIR)/cuda_utils.h $(GPU_DIR)/abm_kernels.h $(GPU_DIR)/biome_kernels.h $(GPU_DIR)/gpu_simulation_manager.h
+ALL_HEADERS = $(CPU_HEADERS) $(UTILS_HEADERS)
+
+# Target executables
+TARGET_BASIC = cpu_demo
+TARGET_INTEGRATED = cpu_demo_integrated
+
+ifeq ($(CUDA_AVAILABLE),true)
+TARGET_GPU = gpu_demo
+ALL_TARGETS = $(TARGET_BASIC) $(TARGET_INTEGRATED) $(TARGET_GPU)
+else
+ALL_TARGETS = $(TARGET_BASIC) $(TARGET_INTEGRATED)
+endif
+
+# Default target
+all: check_cuda $(ALL_TARGETS)
+
+# Check CUDA availability
+check_cuda:
+ifeq ($(CUDA_AVAILABLE),true)
+	@echo "CUDA detected - building GPU targets"
+	@echo "NVCC version: $$(nvcc --version | grep release)"
+else
+	@echo "CUDA not found - building CPU targets only"
+	@echo "To build GPU version, ensure CUDA toolkit is installed and nvcc is in PATH"
+endif
+
+# Create output directory
+$(OUTPUT_DIR):
+	mkdir -p $(OUTPUT_DIR)
+
+# Compile CUDA object files
+ifeq ($(CUDA_AVAILABLE),true)
+$(GPU_DIR)/%.o: $(GPU_DIR)/%.cu
+	$(NVCC) $(NVCCFLAGS) -c $< -o $@
+endif
+
+# Compile the basic CPU demo (RD only, now with configuration system)
+$(TARGET_BASIC): $(CPU_CORE_SOURCES) $(CPU_DIR)/main_RD.cpp $(UTILS_SOURCES) $(ALL_HEADERS) | $(OUTPUT_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TARGET_BASIC) $(CPU_CORE_SOURCES) $(CPU_DIR)/main_RD.cpp $(UTILS_SOURCES)
+
+# Compile the integrated demo (RD + Agents + Biomes)
+$(TARGET_INTEGRATED): $(CPU_CORE_SOURCES) $(CPU_DIR)/main_integrated.cpp $(UTILS_SOURCES) $(ALL_HEADERS) | $(OUTPUT_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TARGET_INTEGRATED) $(CPU_CORE_SOURCES) $(CPU_DIR)/main_integrated.cpp $(UTILS_SOURCES)
+
+# Compile the GPU demo (requires CUDA)
+ifeq ($(CUDA_AVAILABLE),true)
+$(TARGET_GPU): $(GPU_OBJECTS) $(GPU_DIR)/main_gpu_demo.cpp $(UTILS_SOURCES) $(ALL_HEADERS) | $(OUTPUT_DIR)
+	$(NVCC) $(NVCCFLAGS) -o $(TARGET_GPU) $(GPU_OBJECTS) $(GPU_DIR)/main_gpu_demo.cpp $(UTILS_SOURCES) -lcurand
+endif
+
+# Clean build artifacts
+clean:
+	rm -f $(TARGET_BASIC) $(TARGET_INTEGRATED) $(TARGET_GPU)
+	rm -f $(GPU_DIR)/*.o
+	rm -rf $(OUTPUT_DIR)
+
+# Run the basic demo (RD only, now configurable)
+run: $(TARGET_BASIC)
+	./$(TARGET_BASIC)
+
+# Run integrated demo with agents and biome classification
+run-integrated: $(TARGET_INTEGRATED)
+	./$(TARGET_INTEGRATED)
+
+# Run GPU demo (if available)
+ifeq ($(CUDA_AVAILABLE),true)
+run-gpu: $(TARGET_GPU)
+	./$(TARGET_GPU) --profile
+
+run-gpu-basic: $(TARGET_GPU)
+	./$(TARGET_GPU) --basic_kernels --profile
+
+run-gpu-compare: $(TARGET_GPU)
+	./$(TARGET_GPU) --compare
+
+run-gpu-large: $(TARGET_GPU)
+	./$(TARGET_GPU) --width=512 --height=512 --agents=1000 --steps=200 --profile
+endif
+
+# Test with different Gray-Scott parameters using the enhanced basic demo
+test-mitosis: $(TARGET_BASIC)
+	@echo "Testing with mitosis parameters..."
+	./$(TARGET_BASIC) --preset mitosis --steps 1000
+
+test-spots: $(TARGET_BASIC)
+	@echo "Testing with spots parameters..."
+	./$(TARGET_BASIC) --preset spots --steps 1000
+
+test-large: $(TARGET_BASIC)
+	@echo "Testing with larger grid..."
+	./$(TARGET_BASIC) --width=256 --height=256 --steps=500
+
+# GPU-specific tests (if available)
+ifeq ($(CUDA_AVAILABLE),true)
+test-gpu-coral: $(TARGET_GPU)
+	@echo "Testing GPU with coral pattern..."
+	./$(TARGET_GPU) --preset coral --steps 500 --profile
+
+test-gpu-mitosis: $(TARGET_GPU)
+	@echo "Testing GPU with mitosis pattern..."
+	./$(TARGET_GPU) --preset mitosis --steps 500 --profile
+
+test-gpu-performance: $(TARGET_GPU)
+	@echo "Running GPU performance tests..."
+	./$(TARGET_GPU) --width=256 --height=256 --agents=200 --steps=100 --compare
+
+benchmark-gpu: $(TARGET_GPU)
+	@echo "Running GPU benchmarks..."
+	@echo "Small grid (128x128, 100 agents):"
+	./$(TARGET_GPU) --width=128 --height=128 --agents=100 --steps=200 --profile
+	@echo ""
+	@echo "Medium grid (256x256, 200 agents):"
+	./$(TARGET_GPU) --width=256 --height=256 --agents=200 --steps=200 --profile
+	@echo ""
+	@echo "Large grid (512x512, 500 agents):"
+	./$(TARGET_GPU) --width=512 --height=512 --agents=500 --steps=200 --profile
+endif
+
+# Demonstration of configuration file usage
+demo-config: $(TARGET_BASIC)
+	@echo "Creating example configuration file..."
+	@echo "# Example configuration for spots pattern" > example_rd_config.conf
+	@echo "width=200" >> example_rd_config.conf
+	@echo "height=200" >> example_rd_config.conf
+	@echo "Du=0.16" >> example_rd_config.conf
+	@echo "Dv=0.08" >> example_rd_config.conf
+	@echo "f=0.035" >> example_rd_config.conf
+	@echo "k=0.065" >> example_rd_config.conf
+	@echo "steps=800" >> example_rd_config.conf
+	@echo "output_frequency=40" >> example_rd_config.conf
+	@echo "Running simulation with configuration file..."
+	./$(TARGET_BASIC) --config example_rd_config.conf
+
+# Development and debugging targets
+ifeq ($(CUDA_AVAILABLE),true)
+debug-gpu: NVCCFLAGS += -g -G -DDEBUG
+debug-gpu: $(TARGET_GPU)
+	@echo "GPU demo built with debug flags"
+
+profile-kernels: $(TARGET_GPU)
+	@echo "Profiling GPU kernels with nvprof..."
+	nvprof --print-gpu-trace ./$(TARGET_GPU) --width=256 --height=256 --agents=200 --steps=10
+
+memcheck-gpu: $(TARGET_GPU)
+	@echo "Running GPU memory check..."
+	cuda-memcheck ./$(TARGET_GPU) --width=128 --height=128 --agents=50 --steps=10
+endif
+
+# Help target
+help:
+	@echo "GPU-Enhanced Biome-Agent Simulation Build System"
+	@echo "================================================="
+	@echo ""
+	@echo "Available targets:"
+	@echo "  all               - Build all available demos (CPU and GPU if CUDA available)"
+	@echo "  clean             - Remove build artifacts and output"
+	@echo ""
+	@echo "CPU Targets:"
+	@echo "  run               - Build and run the configurable RD demo"
+	@echo "  run-integrated    - Build and run the integrated demo (RD + Agents + Biomes)"
+	@echo "  test-mitosis      - Run RD demo with mitosis pattern parameters"
+	@echo "  test-spots        - Run RD demo with spots pattern parameters"
+	@echo "  test-large        - Run with larger grid"
+	@echo ""
+ifeq ($(CUDA_AVAILABLE),true)
+	@echo "GPU Targets:"
+	@echo "  run-gpu           - Build and run GPU demo with profiling"
+	@echo "  run-gpu-basic     - Build and run GPU demo with basic kernels"
+	@echo "  run-gpu-compare   - Run GPU vs CPU performance comparison"
+	@echo "  run-gpu-large     - Run GPU demo with large grid and many agents"
+	@echo "  test-gpu-coral    - Test GPU with coral pattern"
+	@echo "  test-gpu-mitosis  - Test GPU with mitosis pattern"
+	@echo "  test-gpu-performance - Run comprehensive GPU performance tests"
+	@echo "  benchmark-gpu     - Run GPU benchmarks across different grid sizes"
+	@echo ""
+	@echo "Development Targets:"
+	@echo "  debug-gpu         - Build GPU demo with debug flags"
+	@echo "  profile-kernels   - Profile GPU kernels with nvprof"
+	@echo "  memcheck-gpu      - Run GPU memory check with cuda-memcheck"
+	@echo ""
+else
+	@echo "GPU targets not available (CUDA not found)"
+	@echo ""
+endif
+	@echo "Configuration:"
+	@echo "  demo-config       - Demonstrate configuration file usage"
+	@echo "  help              - Show this help message"
+	@echo ""
+	@echo "Usage Examples:"
+	@echo "  For CPU demo: ./$(TARGET_BASIC) --help"
+ifeq ($(CUDA_AVAILABLE),true)
+	@echo "  For GPU demo: ./$(TARGET_GPU) --help"
+	@echo ""
+	@echo "GPU Implementation Features:"
+	@echo "  - Shared memory tiling for RD stencil operations"
+	@echo "  - Structure of Arrays (SoA) for efficient agent data layout"
+	@echo "  - cuRAND for high-quality parallel random number generation"
+	@echo "  - Double buffering for race-condition-free iterative updates"
+	@echo "  - Atomic operations for agent-environment interactions"
+	@echo "  - Thrust library integration for stream compaction"
+	@echo "  - Performance profiling and CPU/GPU comparison tools"
+endif
+
+.PHONY: all check_cuda clean run run-integrated run-gpu run-gpu-basic run-gpu-compare run-gpu-large test-mitosis test-spots test-large test-gpu-coral test-gpu-mitosis test-gpu-performance benchmark-gpu demo-config debug-gpu profile-kernels memcheck-gpu help 

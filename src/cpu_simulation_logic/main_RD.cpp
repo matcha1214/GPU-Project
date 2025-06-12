@@ -1,7 +1,7 @@
 #include "reaction_diffusion_cpu.h"
-#include "../common/ppm_writer.h"
-#include "../common/config.h"
-#include "../common/timer.h"
+#include "../utils/ppm_writer.h"
+#include "../utils/config.h"
+#include "../utils/timer.h"
 #include <iostream>
 #include <string>
 
